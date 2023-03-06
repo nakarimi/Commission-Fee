@@ -12,8 +12,7 @@ class Math
 
     public function __construct(int $scale)
     {
-        // var_dump('sdfdsfsd');
-        $this->commissionFeeCalc();
+        // $this->commissionFeeCalc();
         $this->scale = $scale;
     }
 
@@ -23,10 +22,10 @@ class Math
     }
 
     // Main function for commission fee calculation.
-    public function commissionFeeCalc()
+    public function commissionFeeCalc($fileUrl)
     {
         $fees = [];
-        $file = fopen(__DIR__ . '/../../input.csv', 'r');
+        $file = fopen($fileUrl, 'r');
         while (($transaction = fgetcsv($file)) !== false) {
             // Check which type of transaction it is? deposit or withdraw.
             if ($transaction[3] === 'deposit') {
@@ -35,10 +34,15 @@ class Math
                 $fees[] = $this->feeFormater($this->withdraw($transaction));
             }
         }
-        var_dump($fees);
-        return 0;
+        return $fees;
     }
-
+    
+    /**
+     * Calcuate the the deposit fee.
+     *
+     * @param  array $transaction
+     * @return float
+     */
     public function deposit(array $transaction): float
     {
         // All deposits are charged 0.03% of deposit amount.
@@ -47,7 +51,13 @@ class Math
 
         return $commissionFee;
     }
-
+    
+    /**
+     * Calcuate the the withdraw fee.
+     *
+     * @param  array $transaction
+     * @return float
+     */
     public function withdraw(array $transaction): float
     {
         // There are different calculation rules for withdraw of private and business clients.
@@ -70,7 +80,13 @@ class Math
 
         return $commissionFee;
     }
-
+    
+    /**
+     * Find the rate to convert values to EUR
+     *
+     * @param  array $transaction
+     * @return float
+     */
     public function checkRate($transaction)
     {
         $rate = 1;
@@ -83,6 +99,14 @@ class Math
         }
         return $rate;
     }
+        
+    /**
+     * Check that if the amount is free of charge or not.
+     * If not, how much exceeded the 1000, and should be charged.
+     *
+     * @param  array $transaction
+     * @return array
+     */
     public function freeCharge($transaction)
     {
         $week = date('W', strtotime($transaction[0]));
@@ -129,8 +153,35 @@ class Math
             return ["isFree" => true];
         }
     }
+
+    /**
+     * Formatting the final fee value to be with 2 deciaml.
+     *
+     * @param  float $fee
+     * @return float
+     */
     public function feeFormater($fee)
     {
-        return number_format((float)$fee, 2, '.', '');
+        return number_format((float) $this->round_up($fee), 2, '.', '');
+    }
+
+    /**
+     * Rounds up a float to a specified number of decimal places.
+     *
+     * @param  float $value
+     * @return float
+     */
+    public function round_up($value)
+    {
+        $places = 2;
+        if ($value > 0.10) {
+            $places = 1;
+        }
+
+        if ($places < 0) {
+            $places = 0;
+        }
+        $mult = pow(10, $places);
+        return ceil($value * $mult) / $mult;
     }
 }
