@@ -8,6 +8,7 @@ class Math
 {
     private $scale;
     private $withdrawPerWeek;
+    private $latestWithdraw = [];
 
     public function __construct(int $scale)
     {
@@ -84,9 +85,20 @@ class Math
     }
     public function freeCharge($transaction)
     {
-        $year = date('Y', strtotime($transaction[0]));
         $week = date('W', strtotime($transaction[0]));
         $rate = $this->checkRate($transaction);
+
+        // Check the time differentiate between the dates to detemine if same week is in different years.
+        if (array_key_exists($transaction[1], $this->latestWithdraw)) {
+            $earlier = date('Y', strtotime($this->latestWithdraw[$transaction[1]]));
+            $later = date('Y', strtotime($transaction[0]));
+            $date1 = date_create($this->latestWithdraw[$transaction[1]]);
+            $date2 = date_create($transaction[0]);
+            $diff = date_diff($date1, $date2);
+            if ($earlier != $later && $diff->format("%a") > 7) {
+                $this->withdrawPerWeek[$week][$transaction[1]] = [];
+            }
+        }
 
         // $oldAmount = $this->withdrawPerWeek[$week][$transaction[1]];
         if (
@@ -104,6 +116,7 @@ class Math
 
         $this->withdrawPerWeek[$week][$transaction[1]][] = $transaction[4] / $rate;
         $newAmount = array_sum($this->withdrawPerWeek[$week][$transaction[1]]);
+        $this->latestWithdraw[$transaction[1]] = $transaction[0];
         if ($newAmount > 1000) {
             if ($oldAmount >= 1000) {
                 $exceeded = $transaction[4];
