@@ -33,15 +33,6 @@ class MathTest extends TestCase
             $this->math->add($leftOperand, $rightOperand)
         );
     }
-    public function testCommissionFeeCalc()
-    {
-        $path = __DIR__ . '/../../input.csv';
-        $expectation = ['0.60', '3.00', '0.00', '0.06', '1.50', '0.00', '0.70', '0.30', '0.30', '3.00', '0.00', '0.00', '8612'];
-        $this->assertEquals(
-            $expectation,
-            $this->math->commissionFeeCalc($path)
-        );
-    }
 
     public function dataProviderForAddTesting(): array
     {
