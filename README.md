@@ -1,11 +1,11 @@
 # Karimi Commission task skeleton
 
 Following steps:
-- don't forget to change `Karimi` namespace and package name in `composer.json`
- to your own, as `Karimi` keyword should not be used anywhere in your task;
-- `\Karimi\CommissionTask\Service\Math` is an example class provided for the skeleton and could or could not be used by your preference;
-- needed scripts could be found inside `composer.json`;
-- before submitting the task make sure that all the scripts pass (`composer run test` in particular);
-- this file should be updated before submitting the task with the documentation on how to run your program.
+- run `composer install` to install all dependecies needed by this skeleton.
+- run `composer test` for automated testing and evaluate the result.
+
+NOTE: Please check the `tasks/api/currency-exchange-rates` link for the exchange rates and evaluate the results based on. On the completion date the exchage rate for `JPY` is 1:130.869977 and for `USD` is 1:1.129031.
+
+Note: Commission.php is the base class for this Commissoin fee calculation.
 
 Good luck! :) 
