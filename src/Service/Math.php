@@ -12,7 +12,6 @@ class Math
 
     public function __construct(int $scale)
     {
-        // $this->commissionFeeCalc();
         $this->scale = $scale;
     }
 
@@ -21,7 +20,13 @@ class Math
         return bcadd($leftOperand, $rightOperand, $this->scale);
     }
 
-    // Main function for commission fee calculation.
+    /**
+     * Main function for commission fee calculation.
+     *
+     * @param string $fileUrl
+     *
+     * @return array
+     */
     public function commissionFeeCalc($fileUrl)
     {
         $fees = [];
@@ -29,19 +34,17 @@ class Math
         while (($transaction = fgetcsv($file)) !== false) {
             // Check which type of transaction it is? deposit or withdraw.
             if ($transaction[3] === 'deposit') {
-                $fees[] = $this->feeFormater($this->deposit($transaction));
+                $fees[] = $this->feeFormater($this->deposit($transaction), $transaction[5]);
             } else {
-                $fees[] = $this->feeFormater($this->withdraw($transaction));
+                $fees[] = $this->feeFormater($this->withdraw($transaction), $transaction[5]);
             }
         }
+
         return $fees;
     }
-    
+
     /**
      * Calcuate the the deposit fee.
-     *
-     * @param  array $transaction
-     * @return float
      */
     public function deposit(array $transaction): float
     {
@@ -51,18 +54,15 @@ class Math
 
         return $commissionFee;
     }
-    
+
     /**
      * Calcuate the the withdraw fee.
-     *
-     * @param  array $transaction
-     * @return float
      */
     public function withdraw(array $transaction): float
     {
         // There are different calculation rules for withdraw of private and business clients.
         $amount = $transaction[4];
-        $rate = $this->checkRate($transaction);
+        $rate = $this->getRate($transaction[5]);
 
         if ($transaction[2] === 'private') {
             $chargeStatus = $this->freeCharge($transaction);
@@ -70,8 +70,8 @@ class Math
                 $commissionFee = 0;
             } else {
                 // Private Clients, Commission fee - 0.3% from withdrawn amount.
-                // 1000.00 EUR for a week (from Monday to Sunday) is free of charge
-                $commissionFee = ($chargeStatus['amount'] / $rate) * 0.3 / 100;
+                // Rate for this case already applied in free charge function.
+                $commissionFee = $chargeStatus['amount'] * 0.3 / 100;
             }
         } else {
             // Business Clients, Commission fee - 0.5% from withdrawn amount.
@@ -80,108 +80,121 @@ class Math
 
         return $commissionFee;
     }
-    
+
     /**
-     * Find the rate to convert values to EUR
+     * Find the rate to convert values to EUR.
      *
-     * @param  array $transaction
+     * @param array $transaction
+     *
      * @return float
      */
-    public function checkRate($transaction)
+    public function getRate($currency)
     {
         $rate = 1;
-        if ($transaction[5] != "EUR") {
-            if ($transaction[5] == "JPY") {
+        if ($currency !== 'EUR') {
+            if ($currency === 'JPY') {
                 $rate = 129.53;
-            } else {
+            } elseif ($currency === 'USD') {
                 $rate = 1.1497;
             }
         }
+
         return $rate;
     }
-        
+
     /**
      * Check that if the amount is free of charge or not.
      * If not, how much exceeded the 1000, and should be charged.
      *
-     * @param  array $transaction
+     * @param array $transaction
+     *
      * @return array
      */
     public function freeCharge($transaction)
     {
         $week = date('W', strtotime($transaction[0]));
-        $rate = $this->checkRate($transaction);
+        $rate = $this->getRate($transaction[5]);
 
         // Check the time differentiate between the dates to detemine if same week is in different years.
         if (array_key_exists($transaction[1], $this->latestWithdraw)) {
             $earlier = date('Y', strtotime($this->latestWithdraw[$transaction[1]]));
             $later = date('Y', strtotime($transaction[0]));
+            // Check for the last transaction for the same client if is in less than a week.
             $date1 = date_create($this->latestWithdraw[$transaction[1]]);
             $date2 = date_create($transaction[0]);
             $diff = date_diff($date1, $date2);
-            if ($earlier != $later && $diff->format("%a") > 7) {
+            // If the year changed but the week is same, reset it.
+            if ($earlier !== $later && $diff->format('%a') > 7) {
                 $this->withdrawPerWeek[$week][$transaction[1]] = [];
             }
         }
 
-        // $oldAmount = $this->withdrawPerWeek[$week][$transaction[1]];
+        // Check if specific client has history for specific week.
         if (
-            is_array($this->withdrawPerWeek) && array_key_exists($week, $this->withdrawPerWeek) &&
-            is_array($this->withdrawPerWeek[$week]) && array_key_exists($transaction[1], $this->withdrawPerWeek[$week])
+            is_array($this->withdrawPerWeek)
+            && array_key_exists($week, $this->withdrawPerWeek)
+            && is_array($this->withdrawPerWeek[$week])
+            && array_key_exists($transaction[1], $this->withdrawPerWeek[$week])
         ) {
             $oldAmount = array_sum($this->withdrawPerWeek[$week][$transaction[1]]);
             if (count($this->withdrawPerWeek[$week][$transaction[1]]) > 3) {
-                return ["isFree" => false, "amount" => $transaction[4]];
+                return ['isFree' => false, 'amount' => $transaction[4]];
             }
-            // $this->withdrawPerWeek[$week][$transaction[1]] = $oldAmount + $transaction[4];
         } else {
             $oldAmount = 0;
         }
 
+        // Caclulation to find out how much of amount exceeded based on EUR.
         $this->withdrawPerWeek[$week][$transaction[1]][] = $transaction[4] / $rate;
         $newAmount = array_sum($this->withdrawPerWeek[$week][$transaction[1]]);
         $this->latestWithdraw[$transaction[1]] = $transaction[0];
+        $exceeded = 0;
         if ($newAmount > 1000) {
             if ($oldAmount >= 1000) {
-                $exceeded = $transaction[4];
+                $exceeded = $transaction[4] / $rate;
             } else {
                 $exceeded = $newAmount - 1000;
             }
 
-            return ["isFree" => false, "amount" => $exceeded];
+            return ['isFree' => false, 'amount' => $exceeded];
         } else {
-            return ["isFree" => true];
+            return ['isFree' => true];
         }
     }
 
     /**
      * Formatting the final fee value to be with 2 deciaml.
      *
-     * @param  float $fee
+     * @param float $fee
+     *
      * @return float
      */
-    public function feeFormater($fee)
+    public function feeFormater($fee, $currency)
     {
+        $fee *= $this->getRate($currency);
+
         return number_format((float) $this->round_up($fee), 2, '.', '');
     }
 
     /**
      * Rounds up a float to a specified number of decimal places.
      *
-     * @param  float $value
+     * @param float $value
+     *
      * @return float
      */
     public function round_up($value)
     {
-        $places = 2;
-        if ($value > 0.10) {
-            $places = 1;
-        }
-
-        if ($places < 0) {
+        $places = 0;
+        if ($value >= 10) {
             $places = 0;
+        } elseif ($value >= 0.10) {
+            $places = 1;
+        } elseif ($places < 0.10) {
+            $places = 2;
         }
         $mult = pow(10, $places);
+
         return ceil($value * $mult) / $mult;
     }
 }
