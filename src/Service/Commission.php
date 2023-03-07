@@ -6,9 +6,9 @@ namespace Karimi\CommissionTask\Service;
 
 class Commission
 {
+    private $latestWithdraw = [];
     private $withdrawPerWeek;
     private $exRates;
-    private $latestWithdraw = [];
 
     public function __construct(object $apiRates)
     {
@@ -84,7 +84,7 @@ class Commission
     {
         return $this->exRates->rates->{$currency};
 
-        // Static rate for checking.
+        // Static rate for checking based on the instrcution if needed.
         // $rate = 1;
         // if ($currency !== 'EUR') {
         //     if ($currency === 'JPY') {
@@ -113,9 +113,9 @@ class Commission
             $later = date('Y', strtotime($transaction[0]));
 
             // Check for the last transaction for the same client if is in less than a week.
-            $date1 = date_create($this->latestWithdraw[$transaction[1]]);
-            $date2 = date_create($transaction[0]);
-            $diff = date_diff($date1, $date2);
+            $earlierDate = date_create($this->latestWithdraw[$transaction[1]]);
+            $laterDate = date_create($transaction[0]);
+            $diff = date_diff($earlierDate, $laterDate);
 
             // If the year changed but the week is same, reset it.
             if ($earlier !== $later && $diff->format('%a') > 7) {
@@ -130,6 +130,7 @@ class Commission
             && is_array($this->withdrawPerWeek[$week])
             && array_key_exists($transaction[1], $this->withdrawPerWeek[$week])
         ) {
+            // Sum the amounts that already being charged or were free.
             $oldAmount = array_sum($this->withdrawPerWeek[$week][$transaction[1]]);
 
             // If number of withdraw is more than 3, then it is not free.
@@ -143,6 +144,7 @@ class Commission
         // Caclulation to find out how much of amount exceeded based on EUR.
         $this->withdrawPerWeek[$week][$transaction[1]][] = $transaction[4] / $rate;
         $newAmount = array_sum($this->withdrawPerWeek[$week][$transaction[1]]);
+        // Tracking last withdraw date for differentiate same week from different years.
         $this->latestWithdraw[$transaction[1]] = $transaction[0];
         $exceeded = 0;
         if ($newAmount > 1000) {
@@ -168,7 +170,7 @@ class Commission
         // Return back the fee from EUR to it's original currency and format to decimal.
         $fee *= $this->getRate($currency);
 
-        return number_format((float) $this->round_up($fee), 2, '.', '');
+        return number_format((float) $this->roundUp($fee), 2, '.', '');
     }
 
     /**
@@ -176,7 +178,7 @@ class Commission
      *
      * @param float $value
      */
-    public function round_up($value): float
+    public function roundUp($value): float
     {
         $places = 0;
         if ($value >= 10) {
