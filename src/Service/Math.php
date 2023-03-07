@@ -24,12 +24,11 @@ class Math
      * Main function for commission fee calculation.
      *
      * @param string $fileUrl
-     *
-     * @return array
      */
-    public function commissionFeeCalc($fileUrl)
+    public function commissionFeeCalc($fileUrl): array
     {
         $fees = [];
+        // Load data from the CSV file and loop over each line.
         $file = fopen($fileUrl, 'r');
         while (($transaction = fgetcsv($file)) !== false) {
             // Check which type of transaction it is? deposit or withdraw.
@@ -85,10 +84,8 @@ class Math
      * Find the rate to convert values to EUR.
      *
      * @param array $transaction
-     *
-     * @return float
      */
-    public function getRate($currency)
+    public function getRate($currency): float
     {
         $rate = 1;
         if ($currency !== 'EUR') {
@@ -107,10 +104,8 @@ class Math
      * If not, how much exceeded the 1000, and should be charged.
      *
      * @param array $transaction
-     *
-     * @return array
      */
-    public function freeCharge($transaction)
+    public function freeCharge($transaction): array
     {
         $week = date('W', strtotime($transaction[0]));
         $rate = $this->getRate($transaction[5]);
@@ -119,10 +114,12 @@ class Math
         if (array_key_exists($transaction[1], $this->latestWithdraw)) {
             $earlier = date('Y', strtotime($this->latestWithdraw[$transaction[1]]));
             $later = date('Y', strtotime($transaction[0]));
+
             // Check for the last transaction for the same client if is in less than a week.
             $date1 = date_create($this->latestWithdraw[$transaction[1]]);
             $date2 = date_create($transaction[0]);
             $diff = date_diff($date1, $date2);
+
             // If the year changed but the week is same, reset it.
             if ($earlier !== $later && $diff->format('%a') > 7) {
                 $this->withdrawPerWeek[$week][$transaction[1]] = [];
@@ -137,6 +134,8 @@ class Math
             && array_key_exists($transaction[1], $this->withdrawPerWeek[$week])
         ) {
             $oldAmount = array_sum($this->withdrawPerWeek[$week][$transaction[1]]);
+
+            // If number of withdraw is more than 3, then it is not free.
             if (count($this->withdrawPerWeek[$week][$transaction[1]]) > 3) {
                 return ['isFree' => false, 'amount' => $transaction[4]];
             }
@@ -166,11 +165,10 @@ class Math
      * Formatting the final fee value to be with 2 deciaml.
      *
      * @param float $fee
-     *
-     * @return float
      */
-    public function feeFormater($fee, $currency)
+    public function feeFormater($fee, $currency): string
     {
+        // Return back the fee from EUR to it's original currency and format to decimal.
         $fee *= $this->getRate($currency);
 
         return number_format((float) $this->round_up($fee), 2, '.', '');
@@ -180,10 +178,8 @@ class Math
      * Rounds up a float to a specified number of decimal places.
      *
      * @param float $value
-     *
-     * @return float
      */
-    public function round_up($value)
+    public function round_up($value): float
     {
         $places = 0;
         if ($value >= 10) {
